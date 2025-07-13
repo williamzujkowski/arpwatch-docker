@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+
+FROM ubuntu:24.04 AS builder
+RUN apt-get update && apt-get install -y \
+      python3 wget curl ca-certificates \
+      build-essential autoconf automake libpcap-dev libwrap0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+RUN wget --no-verbose https://ee.lbl.gov/downloads/arpwatch/arpwatch-2.1a15.tar.gz \
+      -O arpwatch.tar.gz \
+    && tar -xzf arpwatch.tar.gz \
+    && cd arpwatch-2.1a15 \
+    && ./configure --prefix=/usr/local \
+    && make \
+    && make install                                        
+
+# Build ethercodes from local CSV
+RUN curl -sSLf https://standards-oui.ieee.org/oui/oui.csv -o oui.csv \
+ && curl -sSLf https://raw.githubusercontent.com/frispete/fetch-ethercodes/master/fetch_ethercodes.py \
+      -o /usr/local/bin/fetch_ethercodes.py \
+ && chmod +x /usr/local/bin/fetch_ethercodes.py \
+ && fetch_ethercodes.py -k -o /ethercodes.dat            

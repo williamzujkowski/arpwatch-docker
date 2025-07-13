@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+
+### === Build Stage ===
+FROM ubuntu:24.04 AS builder
+RUN apt-get update && apt-get install -y \
+      python3 wget curl ca-certificates \
+      build-essential autoconf automake libpcap-dev libwrap0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+RUN wget --no-verbose https://ee.lbl.gov/downloads/arpwatch/arpwatch-2.1a15.tar.gz \
+      -O arpwatch.tar.gz \
+    && tar -xzf arpwatch.tar.gz \
+    && cd arpwatch-2.1a15 \
+    && ./configure --prefix=/usr/local \
+    && make \
+    && make install
+
+# Ethercodes build (local CSV avoids HTTP 418)
+RUN curl -sSLf https://standards-oui.ieee.org/oui/oui.csv -o oui.csv \
+ && curl -sSLf https://raw.githubusercontent.com/frispete/fetch-ethercodes/master/fetch_ethercodes.py \
+      -o /usr/local/bin/fetch_ethercodes.py \
+ && chmod +x /usr/local/bin/fetch_ethercodes.py \
+ && fetch_ethercodes.py -k -o /ethercodes.dat
+
+### === Runtime Stage ===
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y \
+      nullmailer rsyslog psmisc python3 wget \
+      python3-prometheus-client python3-watchdog \
+    && rm -rf /var/lib/apt/lists/*
+
+# 1) Create the arpwatch user before any chown
+RUN useradd --no-create-home --shell /usr/sbin/nologin arpwatch
+
+# 2) Prepare filesystem and set ownership
+RUN mkdir -p /var/log /var/lib/arpwatch \
+  && touch /var/log/arpwatch.log \
+  && chown arpwatch:arpwatch /var/log/arpwatch.log \
+  && chown arpwatch:arpwatch /var/lib/arpwatch
+
+# 3) Copy built artifacts
+COPY --from=builder /usr/local/sbin/arpwatch  /usr/local/sbin/arpwatch
+COPY --from=builder /ethercodes.dat          /usr/share/arpwatch/ethercodes.dat
+
+# 4) Application scripts
+ADD cmd.sh       /cmd.sh
+ADD rsyslog.conf /rsyslog.conf
+ADD exporter/metrics_exporter.py /exporter/metrics_exporter.py
+RUN chmod +x /exporter/metrics_exporter.py
+
+USER arpwatch
+ENTRYPOINT ["bash", "/cmd.sh"]

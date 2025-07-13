@@ -1,0 +1,730 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+The content has been processed where content has been compressed (code blocks are separated by ⋮---- delimiter).
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.github/
+  ISSUE_TEMPLATE/
+    ISSUE_TEMPLATE/
+      bug_report.md
+      config.yml
+      feature_request.md
+  workflows/
+    ci.yml
+    codeql-analysis.yml
+    dependency-review.yml
+  pull_request_template.md
+exporter/
+  metrics_exporter.py
+  requirements.txt
+prometheus/
+  prometheus.yml
+.dockerignore
+.env.example
+.gitignore
+cmd.sh
+CONTRIBUTING.md
+dependabot.yml
+docker-compose.yml
+Dockerfile
+Dockerfile.crossbuild
+README.md
+rsyslog.conf
+SECURITY.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".github/workflows/ci.yml">
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Lint Code Base
+        uses: github/super-linter@v4
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Test Placeholder
+        run: |
+          echo "Add your test commands here"
+          echo "This is a placeholder for project-specific tests"
+          # Example: pytest --cov=src
+</file>
+
+<file path=".github/workflows/codeql-analysis.yml">
+name: "CodeQL Analysis"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # At 00:00 on Sunday
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python' ]  # Update with languages for your project
+        # Supported options: cpp, csharp, go, java, javascript, python, ruby
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+</file>
+
+<file path=".github/workflows/dependency-review.yml">
+name: 'Dependency Review'
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v2
+</file>
+
+<file path="exporter/metrics_exporter.py">
+#!/usr/bin/env python3
+"""
+Simple Prometheus exporter: counts 'new station' lines in the arpwatch log.
+"""
+⋮----
+LOG_FILE = '/var/log/arpwatch.log'
+NEW_STATION = re.compile(r'new station', re.IGNORECASE)
+counter = Counter('arpwatch_new_station_total', 'Total new stations detected')
+⋮----
+def follow(file)
+⋮----
+line = file.readline()
+⋮----
+start_http_server(8000)     # Expose metrics on port 8000
+</file>
+
+<file path="exporter/requirements.txt">
+prometheus-client
+watchdog
+</file>
+
+<file path="prometheus/prometheus.yml">
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'arpwatch_exporter'
+    static_configs:
+      - targets: ['arpwatch:8000']                              # Scrape exporter from arpwatch service :contentReference[oaicite:12]{index=12}
+    metrics_path: /metrics
+</file>
+
+<file path=".dockerignore">
+# Build artifacts and local data
+var-lib-arpwatch/
+*.pyc
+__pycache__/
+.env
+</file>
+
+<file path=".env.example">
+# ARPWATCH settings
+ARPWATCH_NOTIFICATION_EMAIL_TO=alerts@example.net
+ARPWATCH_NOTIFICATION_EMAIL_FROM=arpwatch@example.com
+ARPWATCH_NOTIFICATION_EMAIL_SERVER=smtp.example.com
+# Optionally:
+# ARPWATCH_INTERFACE=eth0
+</file>
+
+<file path="cmd.sh">
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_FILE='/var/log/arpwatch.log'
+
+# Ensure the log file exists and is writable
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+
+# Required env vars
+: "${ARPWATCH_NOTIFICATION_EMAIL_TO:?Missing ARPWATCH_NOTIFICATION_EMAIL_TO}"
+: "${ARPWATCH_NOTIFICATION_EMAIL_FROM:?Missing ARPWATCH_NOTIFICATION_EMAIL_FROM}"
+: "${ARPWATCH_NOTIFICATION_EMAIL_SERVER:?Missing ARPWATCH_NOTIFICATION_EMAIL_SERVER}"
+
+# Start rsyslog
+rsyslogd -f /rsyslog.conf
+
+# Start metrics exporter in background
+python3 /exporter/metrics_exporter.py &  
+echo "Started Prometheus exporter (pid $!)"
+
+# Build arpwatch command
+CMD_ARGS=(-u arpwatch -a -p)
+[[ -n "${ARPWATCH_INTERFACE:-}" ]] && CMD_ARGS+=(-i "$ARPWATCH_INTERFACE")
+CMD_ARGS+=(-m "$ARPWATCH_NOTIFICATION_EMAIL_TO")
+
+# Exec arpwatch (this replaces the shell)
+exec /usr/local/sbin/arpwatch "${CMD_ARGS[@]}"
+</file>
+
+<file path="docker-compose.yml">
+services:
+  arpwatch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: arpwatch:latest
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./var-lib-arpwatch:/var/lib/arpwatch
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+</file>
+
+<file path="Dockerfile">
+# syntax=docker/dockerfile:1
+
+### === Build Stage ===
+FROM ubuntu:24.04 AS builder
+RUN apt-get update && apt-get install -y \
+      python3 wget curl ca-certificates \
+      build-essential autoconf automake libpcap-dev libwrap0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+RUN wget --no-verbose https://ee.lbl.gov/downloads/arpwatch/arpwatch-2.1a15.tar.gz \
+      -O arpwatch.tar.gz \
+    && tar -xzf arpwatch.tar.gz \
+    && cd arpwatch-2.1a15 \
+    && ./configure --prefix=/usr/local \
+    && make \
+    && make install
+
+# Ethercodes build (local CSV avoids HTTP 418)
+RUN curl -sSLf https://standards-oui.ieee.org/oui/oui.csv -o oui.csv \
+ && curl -sSLf https://raw.githubusercontent.com/frispete/fetch-ethercodes/master/fetch_ethercodes.py \
+      -o /usr/local/bin/fetch_ethercodes.py \
+ && chmod +x /usr/local/bin/fetch_ethercodes.py \
+ && fetch_ethercodes.py -k -o /ethercodes.dat
+
+### === Runtime Stage ===
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y \
+      nullmailer rsyslog psmisc python3 wget \
+      python3-prometheus-client python3-watchdog \
+    && rm -rf /var/lib/apt/lists/*
+
+# 1) Create the arpwatch user before any chown
+RUN useradd --no-create-home --shell /usr/sbin/nologin arpwatch
+
+# 2) Prepare filesystem and set ownership
+RUN mkdir -p /var/log /var/lib/arpwatch \
+  && touch /var/log/arpwatch.log \
+  && chown arpwatch:arpwatch /var/log/arpwatch.log \
+  && chown arpwatch:arpwatch /var/lib/arpwatch
+
+# 3) Copy built artifacts
+COPY --from=builder /usr/local/sbin/arpwatch  /usr/local/sbin/arpwatch
+COPY --from=builder /ethercodes.dat          /usr/share/arpwatch/ethercodes.dat
+
+# 4) Application scripts
+ADD cmd.sh       /cmd.sh
+ADD rsyslog.conf /rsyslog.conf
+ADD exporter/metrics_exporter.py /exporter/metrics_exporter.py
+RUN chmod +x /exporter/metrics_exporter.py
+
+USER arpwatch
+ENTRYPOINT ["bash", "/cmd.sh"]
+</file>
+
+<file path="Dockerfile.crossbuild">
+# syntax=docker/dockerfile:1
+
+FROM ubuntu:24.04 AS builder
+RUN apt-get update && apt-get install -y \
+      python3 wget curl ca-certificates \
+      build-essential autoconf automake libpcap-dev libwrap0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+RUN wget --no-verbose https://ee.lbl.gov/downloads/arpwatch/arpwatch-2.1a15.tar.gz \
+      -O arpwatch.tar.gz \
+    && tar -xzf arpwatch.tar.gz \
+    && cd arpwatch-2.1a15 \
+    && ./configure --prefix=/usr/local \
+    && make \
+    && make install                                        
+
+# Build ethercodes from local CSV
+RUN curl -sSLf https://standards-oui.ieee.org/oui/oui.csv -o oui.csv \
+ && curl -sSLf https://raw.githubusercontent.com/frispete/fetch-ethercodes/master/fetch_ethercodes.py \
+      -o /usr/local/bin/fetch_ethercodes.py \
+ && chmod +x /usr/local/bin/fetch_ethercodes.py \
+ && fetch_ethercodes.py -k -o /ethercodes.dat
+</file>
+
+<file path="rsyslog.conf">
+## rsyslog.conf  
+
+$ModLoad imuxsock
+$ModLoad omfile                     # ensure file-output module is available 
+$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+$FileOwner root
+$FileGroup adm
+$FileCreateMode 0640
+$DirCreateMode 0755
+$Umask 0022
+$WorkDirectory /var/log             # ensure log directory exists and is writable
+
+# Log everything to Docker logs
+*.*    -/proc/1/fd/2
+
+# Also write arpwatch events for exporter
+daemon.*    -/var/log/arpwatch.log  # persist arpwatch events
+</file>
+
+<file path=".github/ISSUE_TEMPLATE/ISSUE_TEMPLATE/bug_report.md">
+---
+name: Bug report
+about: Create a report to help us improve
+title: '[BUG] '
+labels: bug
+assignees: ''
+---
+
+## Describe the bug
+A clear and concise description of what the bug is.
+
+## To Reproduce
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+## Expected behavior
+A clear and concise description of what you expected to happen.
+
+## Screenshots
+If applicable, add screenshots to help explain your problem.
+
+## Environment
+ - OS: [e.g. Windows, macOS, Linux]
+ - Browser/Version: [if applicable]
+ - Application Version: [e.g. 1.0.0]
+
+## Additional context
+Add any other context about the problem here.
+</file>
+
+<file path=".github/ISSUE_TEMPLATE/ISSUE_TEMPLATE/config.yml">
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Community Support
+    url: https://github.com/orgs/community/discussions
+    about: Please ask and answer questions here.
+  - name: GitHub Security Bug Bounty
+    url: https://bounty.github.com/
+    about: Please report security vulnerabilities here.
+</file>
+
+<file path=".github/ISSUE_TEMPLATE/ISSUE_TEMPLATE/feature_request.md">
+---
+name: Feature request
+about: Suggest an idea for this project
+title: '[FEATURE] '
+labels: enhancement
+assignees: ''
+---
+
+## Is your feature request related to a problem? Please describe.
+A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+
+## Describe the solution you'd like
+A clear and concise description of what you want to happen.
+
+## Describe alternatives you've considered
+A clear and concise description of any alternative solutions or features you've considered.
+
+## Additional context
+Add any other context or screenshots about the feature request here.
+</file>
+
+<file path=".github/pull_request_template.md">
+## Description
+Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
+
+Fixes # (issue)
+
+## Type of change
+Please delete options that are not relevant.
+
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Documentation update
+
+## How Has This Been Tested?
+Please describe the tests that you ran to verify your changes. Provide instructions so we can reproduce.
+
+## Checklist:
+- [ ] My code follows the style guidelines of this project
+- [ ] I have performed a self-review of my own code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings
+- [ ] I have added tests that prove my fix is effective or that my feature works
+- [ ] New and existing unit tests pass locally with my changes
+- [ ] Any dependent changes have been merged and published in downstream modules
+</file>
+
+<file path=".gitignore">
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Project specific
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+</file>
+
+<file path="CONTRIBUTING.md">
+# Contributing Guidelines
+
+Thank you for your interest in contributing to this project\! We value the contributions of each community member and want to make the process as smooth as possible.
+
+## Code of Conduct
+
+By participating in this project, you agree to abide by our Code of Conduct. Please read it before contributing.
+
+## How to Contribute
+
+### Reporting Bugs
+
+- Before submitting a bug report, please check that it has not already been reported
+- Use the bug report template when creating an issue
+- Include as much detail as possible: steps to reproduce, expected behavior, actual behavior, and environment details
+
+### Suggesting Features
+
+- Use the feature request template when creating an issue
+- Clearly describe the problem your feature would solve
+- Explain how your solution would work
+- Consider the scope of the feature
+
+### Pull Requests
+
+1. Fork the repository
+2. Create a new branch for your feature or bug fix
+3. Make your changes
+4. Add or update tests as necessary
+5. Ensure all tests pass
+6. Commit your changes with clear, descriptive commit messages
+7. Push your branch to your fork
+8. Submit a pull request to the main repository
+
+## Development Setup
+
+```bash
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+## Style Guidelines
+
+- Follow PEP 8 for Python code
+- Use meaningful variable and function names
+- Add comments to explain complex logic
+- Write good commit messages
+
+## Testing
+
+- Add tests for new features
+- Ensure all tests pass before submitting a pull request
+- Aim for good test coverage
+
+## Documentation
+
+- Update documentation for new features or changes in behavior
+- Use clear language and provide examples where helpful
+
+## Review Process
+
+- All submissions require review
+- Maintainers may suggest changes or improvements
+- Once approved, maintainers will merge your contribution
+
+Thank you for contributing\!
+</file>
+
+<file path="dependabot.yml">
+version: 2
+updates:
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    
+  # Placeholder for other package ecosystems
+  # Uncomment and configure as needed for your project
+  
+  # - package-ecosystem: "pip" # For Python projects
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  
+  # - package-ecosystem: "npm" # For JavaScript/Node.js projects
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  
+  # - package-ecosystem: "maven" # For Java projects
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+</file>
+
+<file path="README.md">
+# arpwatch-docker
+
+This container builds **arpwatch** from source on Ubuntu 24.04 LTS, fetches the OUI database, runs **nullmailer** for email alerts, and exposes a Prometheus metrics endpoint for new-station alerts.
+
+## Quickstart
+
+1. Copy `.env.example` to `.env` and adjust.
+2. Build & launch:
+   ```bash
+   docker-compose up -d --build
+3. View arpwatch alerts via email; metrics at `http://localhost:8000/metrics`; Prometheus UI at `http://localhost:9090`.
+
+## Standards & Practices
+
+* **Shell**: `set -euo pipefail`, ShellCheck-compliant
+* **Docker**: Multi-stage, pinned base, apt cache cleanup, non-root user ([Docker Documentation][1])
+* **Metrics**: Prometheus exporter increments on “new station” patterns in logs
+* **Logging**: rsyslog forwards to Docker logs and file for exporter
+
+---
+
+With this, you have a fully automated, high-quality, standards-compliant Docker setup: building arpwatch yourself, exporting metrics for Prometheus, enforced CI-style healthchecks, and minimal root footprint. Enjoy!
+</file>
+
+<file path="SECURITY.md">
+# Security Policy
+
+## Reporting a Vulnerability
+
+We take the security of our project seriously. If you believe you've found a security vulnerability, please follow these steps:
+
+1. **Do not disclose the vulnerability publicly**
+2. **Email us directly at [security@example.com]** with details about:
+   - The location and nature of the vulnerability
+   - Steps to reproduce the issue
+   - Potential impact of the vulnerability
+   - Any suggestions for remediation
+
+## Response Process
+
+When you report a vulnerability:
+
+1. We will acknowledge receipt of your report within 48 hours
+2. We will provide an initial assessment of the report within 5 business days
+3. We will work with you to understand and validate the issue
+4. We will develop and test a fix
+5. We will notify affected users (if applicable)
+
+## Supported Versions
+
+ < /dev/null |  Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
+| < 1.0   | :x:                |
+
+## Security Updates
+
+Security updates will be released as needed. For critical vulnerabilities, we will expedite the release process.
+
+## Attribution
+
+We believe in recognizing security researchers who help us improve our security. If you would like to be acknowledged for your discovery, please let us know in your report.
+</file>
+
+</files>
