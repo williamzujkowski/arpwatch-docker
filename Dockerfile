@@ -10,15 +10,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /tmp
 RUN wget --no-verbose https://ee.lbl.gov/downloads/arpwatch/arpwatch-2.1a15.tar.gz \
       -O arpwatch.tar.gz \
-    && tar -xzf arpwatch.tar.gz \
-    && cd arpwatch-2.1a15 \
-    && ./configure --prefix=/usr/local \
+    && tar -xzf arpwatch.tar.gz
+
+WORKDIR /tmp/arpwatch-2.1a15
+RUN ./configure --prefix=/usr/local \
     && make \
     && make install
 
 # Ethercodes build (local CSV avoids HTTP 418)
-RUN wget -O oui.csv https://standards-oui.ieee.org/oui/oui.csv \
- && wget -O /usr/local/bin/fetch_ethercodes.py \
+RUN wget --progress=dot:giga -O oui.csv https://standards-oui.ieee.org/oui/oui.csv \
+ && wget --progress=dot:giga -O /usr/local/bin/fetch_ethercodes.py \
       https://raw.githubusercontent.com/frispete/fetch-ethercodes/master/fetch_ethercodes.py \
  && chmod +x /usr/local/bin/fetch_ethercodes.py \
  && fetch_ethercodes.py -k -o /ethercodes.dat
