@@ -2,8 +2,8 @@
 
 ### === Build Stage ===
 FROM ubuntu:24.04 AS builder
-RUN apt-get update && apt-get install -y \
-      python3 wget curl ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 wget ca-certificates \
       build-essential autoconf automake libpcap-dev libwrap0-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -17,15 +17,15 @@ RUN wget --no-verbose https://ee.lbl.gov/downloads/arpwatch/arpwatch-2.1a15.tar.
     && make install
 
 # Ethercodes build (local CSV avoids HTTP 418)
-RUN curl -sSLf https://standards-oui.ieee.org/oui/oui.csv -o oui.csv \
- && curl -sSLf https://raw.githubusercontent.com/frispete/fetch-ethercodes/master/fetch_ethercodes.py \
-      -o /usr/local/bin/fetch_ethercodes.py \
+RUN wget -O oui.csv https://standards-oui.ieee.org/oui/oui.csv \
+ && wget -O /usr/local/bin/fetch_ethercodes.py \
+      https://raw.githubusercontent.com/frispete/fetch-ethercodes/master/fetch_ethercodes.py \
  && chmod +x /usr/local/bin/fetch_ethercodes.py \
  && fetch_ethercodes.py -k -o /ethercodes.dat
 
 ### === Runtime Stage ===
 FROM ubuntu:24.04
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
       nullmailer rsyslog psmisc python3 wget \
       python3-prometheus-client python3-watchdog \
     && rm -rf /var/lib/apt/lists/*
@@ -44,9 +44,9 @@ COPY --from=builder /usr/local/sbin/arpwatch  /usr/local/sbin/arpwatch
 COPY --from=builder /ethercodes.dat          /usr/share/arpwatch/ethercodes.dat
 
 # 4) Application scripts
-ADD cmd.sh       /cmd.sh
-ADD rsyslog.conf /rsyslog.conf
-ADD exporter/metrics_exporter.py /exporter/metrics_exporter.py
+COPY cmd.sh       /cmd.sh
+COPY rsyslog.conf /rsyslog.conf
+COPY exporter/metrics_exporter.py /exporter/metrics_exporter.py
 RUN chmod +x /exporter/metrics_exporter.py
 
 USER arpwatch
