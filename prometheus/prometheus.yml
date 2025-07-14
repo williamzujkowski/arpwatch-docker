@@ -4,5 +4,5 @@ global:
 scrape_configs:
   - job_name: 'arpwatch_exporter'
     static_configs:
-      - targets: ['arpwatch:8000']                              # Scrape exporter from arpwatch service :contentReference[oaicite:12]{index=12}
+      - targets: ['localhost:8000']                            # Both services use host network mode :contentReference[oaicite:12]{index=12}
     metrics_path: /metrics

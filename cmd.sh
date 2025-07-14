@@ -17,12 +17,18 @@ else
     echo "Email notifications disabled - no ARPWATCH_NOTIFICATION_EMAIL_TO configured"
 fi
 
-# Start rsyslog in foreground
-rsyslogd -f /rsyslog.conf
+# Start rsyslog only if email notifications are enabled
+if [[ -n "${ARPWATCH_NOTIFICATION_EMAIL_TO:-}" ]]; then
+    echo "Starting rsyslog for email notifications..."
+    rsyslogd -f /rsyslog.conf
+else
+    echo "Skipping rsyslog startup (no email notifications configured)"
+fi
 
 # Launch the metrics exporter
 python3 /exporter/metrics_exporter.py &
-echo "Started Prometheus exporter (pid $!)"
+EXPORTER_PID=$!
+echo "Started Prometheus exporter (pid $EXPORTER_PID)"
 
 # Function to inject sample data for demonstration
 inject_sample_data() {
@@ -30,6 +36,9 @@ inject_sample_data() {
     current_date=$(date '+%b %d %H:%M:%S')
     
     echo "Injecting sample arpwatch data for demonstration..."
+    
+    # Brief pause to ensure metrics exporter is ready
+    sleep 1
     
     # Sample entries with realistic MAC addresses and timing
     cat >> "$LOG_FILE" << EOF
@@ -58,6 +67,14 @@ fi
 
 # Build and exec arpwatch
 CMD_ARGS=(-u arpwatch -a -p)
-[[ -n "${ARPWATCH_INTERFACE:-}" ]] && CMD_ARGS+=(-i "$ARPWATCH_INTERFACE")
+
+# Set default interface if none specified
+INTERFACE="${ARPWATCH_INTERFACE:-eth0}"
+CMD_ARGS+=(-i "$INTERFACE")
+
 [[ -n "${ARPWATCH_NOTIFICATION_EMAIL_TO:-}" ]] && CMD_ARGS+=(-m "$ARPWATCH_NOTIFICATION_EMAIL_TO")
+
+echo "Starting arpwatch with interface: $INTERFACE"
+echo "Command: /usr/local/sbin/arpwatch ${CMD_ARGS[*]}"
+
 exec /usr/local/sbin/arpwatch "${CMD_ARGS[@]}"

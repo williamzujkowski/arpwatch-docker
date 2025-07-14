@@ -29,6 +29,7 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
       nullmailer rsyslog psmisc python3 wget \
       python3-prometheus-client python3-watchdog \
+      libpcap0.8 libwrap0 \
     && rm -rf /var/lib/apt/lists/*
 
 # 1) Create the arpwatch user before any chown
