@@ -28,7 +28,7 @@ RUN wget --progress=dot:giga -O oui.csv https://standards-oui.ieee.org/oui/oui.c
 FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
       nullmailer rsyslog psmisc python3 wget sudo \
-      python3-prometheus-client python3-watchdog \
+      python3-prometheus-client python3-watchdog python3-psutil \
       libpcap0.8 libwrap0 iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -52,7 +52,8 @@ COPY --from=builder /ethercodes.dat          /usr/share/arpwatch/ethercodes.dat
 COPY cmd.sh       /cmd.sh
 COPY rsyslog.conf /rsyslog.conf
 COPY exporter/metrics_exporter.py /exporter/metrics_exporter.py
-RUN chmod +x /exporter/metrics_exporter.py
+COPY scripts/health-check.sh /health-check.sh
+RUN chmod +x /exporter/metrics_exporter.py /health-check.sh
 
 # Add capabilities for network access or install setcap
 RUN apt-get update && apt-get install -y --no-install-recommends libcap2-bin \

@@ -115,43 +115,88 @@ fi
 echo "Running as user: $(whoami)"
 echo "Checking arpwatch capabilities: $(getcap /usr/local/sbin/arpwatch 2>/dev/null || echo 'No capabilities found')"
 
-# Start arpwatch in background
-if /usr/local/sbin/arpwatch "${CMD_ARGS[@]}" &
-then
+# Function to start arpwatch process
+start_arpwatch() {
+    echo "Starting arpwatch with interface: $INTERFACE"
+    /usr/local/sbin/arpwatch "${CMD_ARGS[@]}" &
     ARPWATCH_PID=$!
-    echo "Arpwatch started successfully in background (PID: $ARPWATCH_PID)"
-    
-    # Give arpwatch more time to start and initialize
-    sleep 5
-    
-    # Check if arpwatch is still running
-    if kill -0 "$ARPWATCH_PID" 2>/dev/null; then
-        echo "Arpwatch process confirmed running and healthy"
-        echo "Arpwatch is monitoring interface: $INTERFACE"
+    echo "Arpwatch started with PID: $ARPWATCH_PID"
+    return 0
+}
+
+# Function to check if arpwatch is running
+is_arpwatch_running() {
+    if [[ -n "${ARPWATCH_PID:-}" ]] && kill -0 "$ARPWATCH_PID" 2>/dev/null; then
+        return 0  # Running
     else
-        echo "Warning: Arpwatch process stopped after starting"
+        return 1  # Not running
     fi
+}
+
+# Function to monitor and restart arpwatch
+monitor_arpwatch() {
+    local restart_count=0
+    local max_restarts=5
+    local restart_delay=10
     
-    echo "Container will now keep running to maintain metrics exporter and arpwatch"
-    # Keep container alive so both metrics exporter and arpwatch continue working
-    tail -f /dev/null
+    echo "Arpwatch monitor: Starting continuous monitoring (checking every 30 seconds)"
+    
+    while true; do
+        sleep 30  # Check every 30 seconds
+        
+        if ! is_arpwatch_running; then
+            if [[ $restart_count -lt $max_restarts ]]; then
+                restart_count=$((restart_count + 1))
+                echo "$(date): Arpwatch monitor: Process not running (restart #$restart_count/$max_restarts)"
+                echo "$(date): Arpwatch monitor: Restarting arpwatch in $restart_delay seconds..."
+                sleep $restart_delay
+                
+                if start_arpwatch; then
+                    echo "$(date): Arpwatch monitor: Restart successful"
+                    # Reset restart delay on successful restart
+                    restart_delay=10
+                    
+                    # Send restart signal to metrics exporter by writing to a flag file
+                    echo "$restart_count" > /tmp/arpwatch_restart_count
+                else
+                    echo "$(date): Arpwatch monitor: Restart failed"
+                    # Increase delay for next attempt
+                    restart_delay=$((restart_delay * 2))
+                fi
+            else
+                echo "$(date): Arpwatch monitor: Maximum restart attempts ($max_restarts) reached"
+                echo "$(date): Arpwatch monitor: Automatic restarts disabled. Check container logs for issues."
+                break
+            fi
+        else
+            # Process is running - log occasionally for confirmation
+            if (( $(date +%M) % 5 == 0 )) && (( $(date +%S) < 30 )); then
+                echo "$(date): Arpwatch monitor: Process healthy (PID: $(pgrep arpwatch 2>/dev/null || echo 'unknown'))"
+            fi
+        fi
+    done
+}
+
+# Start arpwatch initially
+echo "Starting arpwatch monitoring with interface: $INTERFACE"
+start_arpwatch
+
+# Give arpwatch time to initialize
+sleep 5
+
+# Always start monitoring regardless of initial arpwatch status
+echo "Starting continuous arpwatch monitoring..."
+monitor_arpwatch &
+MONITOR_PID=$!
+echo "Arpwatch monitor started (PID: $MONITOR_PID)"
+
+if is_arpwatch_running; then
+    echo "Arpwatch process confirmed running and healthy"
+    echo "Arpwatch is monitoring interface: $INTERFACE"
 else
-    EXIT_CODE=$?
-    echo "Arpwatch failed to start (exit code: $EXIT_CODE)"
-    echo "Attempting to run arpwatch with different parameters..."
-    
-    # Try basic command to diagnose
-    CMD_ARGS_TEST=(-f /var/lib/arpwatch/arp.dat -i "$INTERFACE")
-    
-    echo "Trying command: /usr/local/sbin/arpwatch ${CMD_ARGS_TEST[*]}"
-    if timeout 5 /usr/local/sbin/arpwatch "${CMD_ARGS_TEST[@]}" 2>&1 | head -10; then
-        echo "Arpwatch can run but may need different configuration"
-    else
-        echo "Arpwatch fails with basic parameters too"
-    fi
-    
-    echo ""
-    echo "Metrics exporter will continue running for demonstration purposes"
-    # Keep container alive so metrics exporter continues working
-    tail -f /dev/null
+    echo "Warning: Arpwatch process not running - monitor will attempt to restart"
 fi
+
+echo "Container will now keep running to maintain metrics exporter and arpwatch monitoring"
+# Keep container alive - the monitoring loop will handle arpwatch restarts
+tail -f /dev/null

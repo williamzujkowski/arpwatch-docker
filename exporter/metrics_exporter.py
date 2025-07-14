@@ -5,6 +5,8 @@ import logging
 import os
 import signal
 import sys
+import psutil
+import threading
 from prometheus_client import start_http_server, Counter, Gauge
 
 # Configuration
@@ -59,6 +61,8 @@ PATTERNS_AND_METRICS = {
 # Additional metrics
 last_activity = Gauge('arpwatch_last_activity_timestamp', 'Timestamp of last arpwatch log activity')
 total_events = Counter('arpwatch_total_events', 'Total arpwatch events processed')
+arpwatch_process_health = Gauge('arpwatch_process_health', 'Arpwatch process health status (1=running, 0=not running)')
+arpwatch_restart_count = Counter('arpwatch_restart_count', 'Number of times arpwatch process has been restarted')
 
 # Configure logging
 logging.basicConfig(
@@ -112,6 +116,53 @@ def wait_for_log_file(filepath, max_wait=60):
     logger.info(f"Log file {filepath} found")
 
 
+def is_arpwatch_running():
+    """Check if arpwatch process is running"""
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            if proc.info['name'] == 'arpwatch':
+                return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        pass
+    return False
+
+
+def monitor_arpwatch_process():
+    """Background thread to monitor arpwatch process health"""
+    logger.info("Starting arpwatch process monitoring")
+    last_restart_count = 0
+    
+    while not shutdown_flag:
+        try:
+            if is_arpwatch_running():
+                arpwatch_process_health.set(1)
+            else:
+                arpwatch_process_health.set(0)
+                logger.warning("Arpwatch process not detected")
+            
+            # Check for restart count updates from monitoring script
+            try:
+                if os.path.exists('/tmp/arpwatch_restart_count'):
+                    with open('/tmp/arpwatch_restart_count', 'r') as f:
+                        current_restart_count = int(f.read().strip())
+                        if current_restart_count > last_restart_count:
+                            # Update the restart counter metric
+                            restarts_to_add = current_restart_count - last_restart_count
+                            for _ in range(restarts_to_add):
+                                arpwatch_restart_count.inc()
+                            last_restart_count = current_restart_count
+                            logger.info(f"Detected {restarts_to_add} arpwatch restart(s), total: {current_restart_count}")
+            except (ValueError, IOError) as e:
+                logger.debug(f"Could not read restart count file: {e}")
+                
+        except Exception as e:
+            logger.error(f"Error checking arpwatch process: {e}")
+            arpwatch_process_health.set(0)
+        
+        # Check every 30 seconds
+        time.sleep(30)
+
+
 if __name__ == '__main__':
     # Set up signal handlers
     signal.signal(signal.SIGTERM, signal_handler)
@@ -125,6 +176,11 @@ if __name__ == '__main__':
         # Start metrics server
         start_http_server(METRICS_PORT, addr=METRICS_ADDR)
         logger.info("Started Prometheus exporter")
+
+        # Start arpwatch process monitoring in background thread
+        process_monitor_thread = threading.Thread(target=monitor_arpwatch_process, daemon=True)
+        process_monitor_thread.start()
+        logger.info("Started arpwatch process monitoring thread")
 
         # Wait for log file to exist
         wait_for_log_file(LOG_FILE)
