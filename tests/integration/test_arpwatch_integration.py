@@ -41,7 +41,7 @@ class TestArpwatchIntegration:
         
         with container:
             # Wait for container to be ready
-            wait_for_logs(container, "Started Prometheus exporter", timeout=30)
+            wait_for_logs(container, "Started Prometheus exporter (pid", timeout=30)
             yield container
     
     def test_container_startup_and_health(self, arpwatch_container):
@@ -52,7 +52,12 @@ class TestArpwatchIntegration:
         # Check that logs show successful startup
         logs = arpwatch_container.get_logs().decode('utf-8')
         assert "Email notifications disabled" in logs
-        assert "Started Prometheus exporter" in logs
+        # Check for startup indicators from both cmd.sh and metrics exporter
+        startup_indicators = [
+            "Started Prometheus exporter (pid",
+            "Starting Arpwatch Prometheus exporter"
+        ]
+        assert any(indicator in logs for indicator in startup_indicators), f"No startup indicators found in logs: {logs}"
     
     def test_metrics_endpoint_accessible(self, arpwatch_container):
         """Test that Prometheus metrics endpoint is accessible"""
@@ -200,7 +205,7 @@ class TestContainerHealthAndStability:
         container.with_env("ARPWATCH_NOTIFICATION_EMAIL_TO", "")
         
         with container:
-            wait_for_logs(container, "Started Prometheus exporter", timeout=30)
+            wait_for_logs(container, "Started Prometheus exporter (pid", timeout=30)
             yield container
     
     def test_container_environment_variables(self, minimal_container):

@@ -53,7 +53,12 @@ class TestBasicIntegration:
         
         # Check logs for successful startup indicators
         logs = arpwatch_container.get_logs().decode('utf-8')
-        assert "Email notifications disabled" in logs or "Started Prometheus exporter" in logs
+        startup_indicators = [
+            "Email notifications disabled",
+            "Started Prometheus exporter (pid",
+            "Starting Arpwatch Prometheus exporter"
+        ]
+        assert any(indicator in logs for indicator in startup_indicators), f"No startup indicators found in logs: {logs}"
     
     def test_metrics_endpoint_responds(self, arpwatch_container):
         """Test that Prometheus metrics endpoint is accessible and returns valid data"""
