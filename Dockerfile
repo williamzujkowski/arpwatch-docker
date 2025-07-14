@@ -27,19 +27,22 @@ RUN wget --progress=dot:giga -O oui.csv https://standards-oui.ieee.org/oui/oui.c
 ### === Runtime Stage ===
 FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      nullmailer rsyslog psmisc python3 wget \
+      nullmailer rsyslog psmisc python3 wget sudo \
       python3-prometheus-client python3-watchdog \
-      libpcap0.8 libwrap0 \
+      libpcap0.8 libwrap0 iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # 1) Create the arpwatch user before any chown
 RUN useradd --no-create-home --shell /usr/sbin/nologin arpwatch
 
 # 2) Prepare filesystem and set ownership
-RUN mkdir -p /var/log /var/lib/arpwatch \
-  && touch /var/log/arpwatch.log \
-  && chown arpwatch:arpwatch /var/log/arpwatch.log \
-  && chown arpwatch:arpwatch /var/lib/arpwatch
+RUN mkdir -p /var/log /var/lib/arpwatch /usr/local/arpwatch \
+  && touch /var/log/arpwatch.log /var/lib/arpwatch/arp.dat \
+  && chown -R arpwatch:arpwatch /var/log/arpwatch.log \
+  && chown -R arpwatch:arpwatch /var/lib/arpwatch \
+  && chown -R arpwatch:arpwatch /usr/local/arpwatch \
+  && chmod 755 /var/lib/arpwatch /usr/local/arpwatch \
+  && chmod 644 /var/lib/arpwatch/arp.dat
 
 # 3) Copy built artifacts
 COPY --from=builder /usr/local/sbin/arpwatch  /usr/local/sbin/arpwatch
@@ -51,5 +54,11 @@ COPY rsyslog.conf /rsyslog.conf
 COPY exporter/metrics_exporter.py /exporter/metrics_exporter.py
 RUN chmod +x /exporter/metrics_exporter.py
 
-USER arpwatch
+# Add capabilities for network access or install setcap
+RUN apt-get update && apt-get install -y --no-install-recommends libcap2-bin \
+    && rm -rf /var/lib/apt/lists/* \
+    && setcap cap_net_raw,cap_net_admin+eip /usr/local/sbin/arpwatch
+
+# Don't switch to arpwatch user yet - we need to start as root to access capabilities
+# The cmd.sh script will handle dropping privileges appropriately
 ENTRYPOINT ["bash", "/cmd.sh"]

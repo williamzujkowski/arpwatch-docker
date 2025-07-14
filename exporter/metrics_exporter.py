@@ -5,16 +5,60 @@ import logging
 import os
 import signal
 import sys
-from prometheus_client import start_http_server, Counter
+from prometheus_client import start_http_server, Counter, Gauge
 
 # Configuration
 LOG_FILE = os.getenv('ARPWATCH_LOG_FILE', '/var/log/arpwatch.log')
 METRICS_PORT = int(os.getenv('METRICS_PORT', '8000'))
 METRICS_ADDR = os.getenv('METRICS_ADDR', '0.0.0.0')
 
-# Patterns and metrics
-NEW_STATION = re.compile(r'new station', re.IGNORECASE)
-counter = Counter('arpwatch_new_station_total', 'Total new stations detected')
+# Arpwatch event patterns and corresponding metrics
+PATTERNS_AND_METRICS = {
+    'new_station': {
+        'pattern': re.compile(r'arpwatch: new station', re.IGNORECASE),
+        'metric': Counter('arpwatch_new_station_total', 'Total new stations detected')
+    },
+    'flip_flop': {
+        'pattern': re.compile(r'arpwatch: flip flop', re.IGNORECASE),
+        'metric': Counter('arpwatch_flip_flop_total', 'Total flip flop events (potential ARP spoofing)')
+    },
+    'changed_ethernet': {
+        'pattern': re.compile(r'arpwatch: changed ethernet address', re.IGNORECASE),
+        'metric': Counter('arpwatch_changed_ethernet_total', 'Total ethernet address changes')
+    },
+    'reused_ethernet': {
+        'pattern': re.compile(r'arpwatch: reused old ethernet address', re.IGNORECASE),
+        'metric': Counter('arpwatch_reused_ethernet_total', 'Total reused ethernet addresses')
+    },
+    'bogon': {
+        'pattern': re.compile(r'arpwatch: bogon', re.IGNORECASE),
+        'metric': Counter('arpwatch_bogon_total', 'Total bogon events (invalid network activity)')
+    },
+    'ethernet_mismatch': {
+        'pattern': re.compile(r'arpwatch: ethernet mismatch', re.IGNORECASE),
+        'metric': Counter('arpwatch_ethernet_mismatch_total', 'Total ethernet mismatch events')
+    },
+    'ethernet_broadcast': {
+        'pattern': re.compile(r'arpwatch: ethernet broadcast', re.IGNORECASE),
+        'metric': Counter('arpwatch_ethernet_broadcast_total', 'Total ethernet broadcast events')
+    },
+    'ip_broadcast': {
+        'pattern': re.compile(r'arpwatch: ip broadcast', re.IGNORECASE),
+        'metric': Counter('arpwatch_ip_broadcast_total', 'Total IP broadcast events')
+    },
+    'new_activity': {
+        'pattern': re.compile(r'arpwatch: new activity', re.IGNORECASE),
+        'metric': Counter('arpwatch_new_activity_total', 'Total new activity events (first time in 6+ months)')
+    },
+    'suppressed_decnet': {
+        'pattern': re.compile(r'arpwatch: suppressed.*flip flop', re.IGNORECASE),
+        'metric': Counter('arpwatch_suppressed_decnet_total', 'Total suppressed DECnet flip flop events')
+    }
+}
+
+# Additional metrics
+last_activity = Gauge('arpwatch_last_activity_timestamp', 'Timestamp of last arpwatch log activity')
+total_events = Counter('arpwatch_total_events', 'Total arpwatch events processed')
 
 # Configure logging
 logging.basicConfig(
@@ -92,9 +136,22 @@ if __name__ == '__main__':
                 if shutdown_flag:
                     break
 
-                if NEW_STATION.search(line):
-                    counter.inc()
-                    logger.debug(f"New station detected: {line}")
+                # Update last activity timestamp
+                last_activity.set_to_current_time()
+                
+                # Check each arpwatch event pattern
+                event_found = False
+                for event_type, config in PATTERNS_AND_METRICS.items():
+                    if config['pattern'].search(line):
+                        config['metric'].inc()
+                        total_events.inc()
+                        event_found = True
+                        logger.debug(f"Detected {event_type}: {line}")
+                        break  # Only count first match to avoid double-counting
+                
+                # Log unrecognized arpwatch lines for debugging
+                if 'arpwatch:' in line and not event_found:
+                    logger.debug(f"Unrecognized arpwatch event: {line}")
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")

@@ -9,6 +9,10 @@ services:
     volumes:
       - ./var-lib-arpwatch:/var/lib/arpwatch
     restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    privileged: false  # Use capabilities instead of full privileges
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/metrics"]
       interval: 30s
