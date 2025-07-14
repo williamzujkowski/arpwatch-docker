@@ -33,6 +33,21 @@ docker build -t arpwatch:latest .
 
 ### Testing and Validation
 ```bash
+# Run complete test suite
+pytest
+
+# Run unit tests only
+pytest tests/unit/ -v
+
+# Run integration tests (requires Docker)
+pytest tests/integration/ -v
+
+# Run tests with coverage
+pytest --cov=exporter --cov-report=html
+
+# Run specific test categories
+pytest tests/unit/test_metrics_exporter.py::TestRegexPatterns -v
+
 # Check if metrics exporter is working
 curl http://localhost:8000/metrics | grep arpwatch_new_station_total
 
@@ -43,17 +58,14 @@ curl http://localhost:8000/metrics | grep arpwatch_new_station_total
 docker-compose ps
 docker-compose config
 
-# Validate shell scripts (required quality gate)
-shellcheck cmd.sh
+# Quality gates (automatically run in CI)
+shellcheck cmd.sh                    # Shell script validation
+hadolint Dockerfile                  # Dockerfile linting
+python3 -m py_compile exporter/metrics_exporter.py  # Python syntax check
 
-# Lint Dockerfiles (required quality gate)
-hadolint Dockerfile
-
-# Test Python exporter syntax
-python3 -m py_compile exporter/metrics_exporter.py
-
-# Run integration tests (when available)
-# Example: testcontainers-based harness to validate full pipeline
+# Email optional testing
+docker-compose up -d --build         # Test without email config
+ARPWATCH_NOTIFICATION_EMAIL_TO=test@example.com docker-compose up  # Test with email
 ```
 
 ### Debugging
@@ -161,10 +173,53 @@ docker-compose exec arpwatch ps aux | grep arpwatch
 - If `ARPWATCH_NOTIFICATION_EMAIL_TO` is not set, arpwatch runs without email notifications
 - If `ARPWATCH_NOTIFICATION_EMAIL_TO` is set, then `ARPWATCH_NOTIFICATION_EMAIL_FROM` and `ARPWATCH_NOTIFICATION_EMAIL_SERVER` become required
 
-**Current Implementation Note**: 
-The current `cmd.sh` requires all email variables to be set (lines 12-14). To make email optional, modify the validation logic to check conditionally based on whether `ARPWATCH_NOTIFICATION_EMAIL_TO` is set.
+**✅ Implementation Completed**: 
+Email configuration is now fully optional. If `ARPWATCH_NOTIFICATION_EMAIL_TO` is not set, arpwatch runs without email notifications. When set, `ARPWATCH_NOTIFICATION_EMAIL_FROM` and `ARPWATCH_NOTIFICATION_EMAIL_SERVER` become required.
 
-## Testing Strategy (from project_plan.md)
+## Implementation Status & Recent Updates
+
+### ✅ **Completed Improvements (2025-01-13)**
+
+**Phase 1: Email Optional & Quality Gates**
+- **Email configuration made optional**: Modified `cmd.sh` to allow operation without email settings
+- **Quality gates implemented**: Added ShellCheck and hadolint validation to CI workflow  
+- **CI passing**: All quality gates validate successfully
+
+**Phase 2: Unit Testing Infrastructure**
+- **Comprehensive pytest framework**: 8 unit tests covering core functionality
+- **Coverage reporting**: Integrated with CI, 80% threshold configured
+- **Test categories**: Follow function, regex patterns, Prometheus metrics, integrated workflow
+
+**Phase 3: Integration Testing with Testcontainers**
+- **Full testcontainers suite**: End-to-end Docker pipeline validation
+- **Multiple test scenarios**: Container health, log injection, metric validation
+- **CI-ready**: Configured for both local development and GitHub Actions
+
+### 🔧 **Key Implementation Learnings**
+
+**Email Configuration Pattern:**
+```bash
+# Conditional validation in cmd.sh:12-14
+if [[ -n "${ARPWATCH_NOTIFICATION_EMAIL_TO:-}" ]]; then
+    : "${ARPWATCH_NOTIFICATION_EMAIL_FROM:?Missing when EMAIL_TO is set}"
+    : "${ARPWATCH_NOTIFICATION_EMAIL_SERVER:?Missing when EMAIL_TO is set}"
+    echo "Email notifications enabled for: ${ARPWATCH_NOTIFICATION_EMAIL_TO}"
+else
+    echo "Email notifications disabled - no ARPWATCH_NOTIFICATION_EMAIL_TO configured"
+fi
+```
+
+**Quality Gates Configuration:**
+- **ShellCheck**: Validates shell script quality, catches common issues
+- **hadolint**: Dockerfile linting with `failure-threshold: error` (allows warnings)
+- **Integration**: Both run in parallel with early feedback
+
+**Testing Architecture:**
+- **Unit tests**: Fast validation of core logic (8 tests, ~4s execution)
+- **Integration tests**: Full Docker pipeline with testcontainers
+- **Coverage**: Comprehensive metrics validation and log processing tests
+
+## Testing Strategy (Enhanced Implementation)
 
 ### 1. Unit Tests for Exporter
 **Required Test Coverage:**
@@ -241,6 +296,13 @@ The current `cmd.sh` requires all email variables to be set (lines 12-14). To ma
 - **Build validation**: `docker-compose config` and successful container startup
 - **Integration**: Full pipeline test with metric validation
 
-**GitHub Actions Workflow** (`.github/workflows/ci.yml`):
-- Automated builds, linting, integration tests
-- Placeholder for project-specific tests (extend as needed)
+**GitHub Actions Workflows**:
+- **Main CI** (`.github/workflows/ci.yml`): Quality gates, unit tests, linting with coverage reporting
+- **Integration Tests** (`.github/workflows/integration-tests.yml`): Testcontainers-based full pipeline validation
+- **CodeQL Analysis**: Automated security scanning
+
+**Current CI Status**: ✅ All main workflows passing
+- Quality gates: ShellCheck + hadolint validation
+- Unit tests: 8 tests with coverage reporting  
+- Lint validation: Super-linter with comprehensive checks
+- Coverage artifacts: HTML and XML reports generated

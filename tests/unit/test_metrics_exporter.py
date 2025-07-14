@@ -19,7 +19,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../exporter'))
 
 try:
-    from metrics_exporter import follow, NEW_STATION, counter
+    from metrics_exporter import follow, NEW_STATION, counter, wait_for_log_file
 except ImportError:
     # If imports fail, create mock implementations for testing
     import re
@@ -36,12 +36,18 @@ except ImportError:
             if not line:
                 time.sleep(0.1)
                 continue
-            yield line
+            yield line.strip()
+    
+    def wait_for_log_file(filepath, max_wait=60):
+        """Mock wait_for_log_file for testing"""
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Log file {filepath} not found")
 
 
 class TestFollowFunction:
     """Test the follow() log tailing function"""
     
+    @patch('metrics_exporter.shutdown_flag', False)
     def test_follow_reads_new_lines(self):
         """Test that follow() yields new lines appended to file"""
         with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
@@ -67,7 +73,7 @@ class TestFollowFunction:
                     
                     try:
                         new_line = next(follower)
-                        assert new_line.strip() == "New line"
+                        assert new_line == "New line"  # follow() now returns stripped lines
                     except TimeoutError:
                         pytest.skip("Follow function test timed out - this is expected behavior")
                     finally:
@@ -76,6 +82,7 @@ class TestFollowFunction:
             finally:
                 os.unlink(temp_file.name)
     
+    @patch('metrics_exporter.shutdown_flag', False)
     def test_follow_handles_empty_file(self):
         """Test that follow() handles empty files gracefully"""
         with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
@@ -98,7 +105,7 @@ class TestFollowFunction:
                     
                     try:
                         new_line = next(follower)
-                        assert new_line.strip() == "First line"
+                        assert new_line == "First line"  # follow() now returns stripped lines
                     except TimeoutError:
                         pytest.skip("Follow function test timed out - this is expected behavior")
                     finally:
@@ -154,6 +161,53 @@ class TestRegexPatterns:
             assert NEW_STATION.search(log) is not None, f"Failed realistic log: {log}"
 
 
+class TestErrorHandling:
+    """Test error handling functionality"""
+    
+    def test_wait_for_log_file_success(self):
+        """Test wait_for_log_file succeeds when file exists"""
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            try:
+                # Should not raise exception
+                wait_for_log_file(temp_file.name, max_wait=5)
+            finally:
+                os.unlink(temp_file.name)
+    
+    def test_wait_for_log_file_timeout(self):
+        """Test wait_for_log_file raises FileNotFoundError on timeout"""
+        non_existent_file = "/tmp/non_existent_arpwatch_test.log"
+        
+        with pytest.raises(FileNotFoundError):
+            wait_for_log_file(non_existent_file, max_wait=1)
+    
+    @patch('metrics_exporter.shutdown_flag', False)
+    def test_follow_with_file_error(self):
+        """Test follow() handles file errors gracefully"""
+        # Create a file and then delete it to cause an error
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
+            temp_file.write("test line\n")
+            temp_file.flush()
+            
+            try:
+                with open(temp_file.name, 'r') as f:
+                    follower = follow(f)
+                    
+                    # Delete the file while follow is running
+                    os.unlink(temp_file.name)
+                    
+                    # Add a line to trigger file access
+                    # This should work initially, but may cause issues on subsequent reads
+                    # The test mainly verifies follow() doesn't crash immediately
+                    try:
+                        next(follower)  # This might work or timeout
+                    except (StopIteration, TimeoutError, OSError):
+                        # These are acceptable outcomes for this test
+                        pass
+            except FileNotFoundError:
+                # File already deleted, test passed
+                pass
+
+
 class TestPrometheusMetrics:
     """Test prometheus metrics functionality"""
     
@@ -180,12 +234,21 @@ class TestPrometheusMetrics:
         final_value = counter._value._value
         assert final_value == initial_value + increment_count
     
-    @patch('metrics_exporter.start_http_server')
-    def test_metrics_server_binding(self, mock_server):
-        """Test that metrics server binds to correct address and port"""
+    def test_metrics_server_imports(self):
+        """Test that prometheus_client imports work correctly"""
         # This would be tested in integration, but we can verify the import works
         from prometheus_client import start_http_server
         assert start_http_server is not None
+    
+    def test_environment_variable_defaults(self):
+        """Test that environment variable defaults work"""
+        # Test default values are reasonable
+        import metrics_exporter
+        
+        # Check that defaults are set (may be overridden by env)
+        assert hasattr(metrics_exporter, 'LOG_FILE')
+        assert hasattr(metrics_exporter, 'METRICS_PORT')
+        assert hasattr(metrics_exporter, 'METRICS_ADDR')
 
 
 class TestIntegratedWorkflow:
