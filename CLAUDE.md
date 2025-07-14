@@ -168,6 +168,7 @@ docker-compose exec arpwatch ps aux | grep arpwatch
 - `ARPWATCH_NOTIFICATION_EMAIL_FROM` - From address for alerts (required if EMAIL_TO is set)
 - `ARPWATCH_NOTIFICATION_EMAIL_SERVER` - SMTP server for email delivery (required if EMAIL_TO is set)
 - `ARPWATCH_INTERFACE` - Specific interface to monitor (defaults to all interfaces)
+- `ARPWATCH_DEMO_DATA` - Inject sample data at startup for immediate metrics visibility (default: true)
 
 **Email Configuration Logic**:
 - If `ARPWATCH_NOTIFICATION_EMAIL_TO` is not set, arpwatch runs without email notifications
@@ -195,6 +196,13 @@ Email configuration is now fully optional. If `ARPWATCH_NOTIFICATION_EMAIL_TO` i
 - **Multiple test scenarios**: Container health, log injection, metric validation
 - **CI-ready**: Configured for both local development and GitHub Actions
 
+**Phase 4: Enhanced Error Handling & Sample Data**
+- **Improved metrics exporter**: Added comprehensive logging, signal handling, and error recovery
+- **Sample data injection**: Automatic injection of 5 realistic arpwatch entries at startup
+- **Immediate visibility**: Users can see metrics working without waiting for DHCP events
+- **Configurable demo mode**: `ARPWATCH_DEMO_DATA=false` to disable sample data injection
+- **Production-ready reliability**: Enhanced error handling for file operations and graceful shutdown
+
 ### 🔧 **Key Implementation Learnings**
 
 **Email Configuration Pattern:**
@@ -213,6 +221,28 @@ fi
 - **ShellCheck**: Validates shell script quality, catches common issues
 - **hadolint**: Dockerfile linting with `failure-threshold: error` (allows warnings)
 - **Integration**: Both run in parallel with early feedback
+
+**Sample Data Injection Pattern:**
+```bash
+# cmd.sh sample data injection for immediate metrics visibility
+inject_sample_data() {
+    local current_date=$(date '+%b %d %H:%M:%S')
+    echo "Injecting sample arpwatch data for demonstration..."
+    cat >> "$LOG_FILE" << EOF
+${current_date} arpwatch-monitor arpwatch: new station 192.168.1.101 d4:81:d7:23:a5:67 eth0
+${current_date} arpwatch-monitor arpwatch: new station 192.168.1.102 6c:40:08:9a:bc:de eth0
+${current_date} arpwatch-monitor arpwatch: new station 192.168.1.103 00:1e:c9:45:67:89 (printer-lobby.local) eth0
+${current_date} arpwatch-monitor arpwatch: new station 192.168.1.104 00:1b:21:12:34:56 eth0
+${current_date} arpwatch-monitor arpwatch: new station 10.0.0.50 ac:bc:32:78:9a:bc eth0
+EOF
+    echo "Sample data injected: 5 new station events added to ${LOG_FILE}"
+}
+
+# Enabled by default, configurable via ARPWATCH_DEMO_DATA=false
+if [[ "${ARPWATCH_DEMO_DATA:-true}" == "true" ]]; then
+    inject_sample_data
+fi
+```
 
 **Testing Architecture:**
 - **Unit tests**: Fast validation of core logic (8 tests, ~4s execution)

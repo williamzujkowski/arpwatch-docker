@@ -147,6 +147,34 @@ class TestBasicIntegration:
         actual_increment = final_value - initial_value
         assert actual_increment >= expected_increments, f"Expected at least {expected_increments} increments, got {actual_increment}"
     
+    def test_sample_data_injection(self, arpwatch_container):
+        """Test that sample data is injected by default and increments metrics"""
+        host = arpwatch_container.get_container_host_ip()
+        port = arpwatch_container.get_exposed_port(8000)
+        
+        # Get metrics after container startup - should include sample data
+        response = requests.get(f"http://{host}:{port}/metrics", timeout=10)
+        counter_value = self._extract_counter_value(response.text, "arpwatch_new_station_total")
+        
+        # Should have at least 5 entries from sample data injection
+        # Note: Since ARPWATCH_DEMO_DATA defaults to true, sample data should be injected
+        assert counter_value >= 5, f"Expected at least 5 sample entries, got {counter_value}"
+        
+        # Verify the log file contains sample data
+        exec_result = arpwatch_container.exec(["cat", "/var/log/arpwatch.log"])
+        log_content = exec_result.output.decode('utf-8')
+        
+        # Check for sample data entries
+        sample_indicators = [
+            "arpwatch-monitor arpwatch: new station",
+            "192.168.1.101",
+            "d4:81:d7:23:a5:67",
+            "10.0.0.50"
+        ]
+        
+        for indicator in sample_indicators:
+            assert indicator in log_content, f"Sample data indicator '{indicator}' not found in logs"
+    
     def _extract_counter_value(self, metrics_text: str, counter_name: str) -> float:
         """Extract counter value from Prometheus metrics text"""
         for line in metrics_text.split('\n'):

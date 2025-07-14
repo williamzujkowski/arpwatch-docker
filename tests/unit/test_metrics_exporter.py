@@ -280,3 +280,98 @@ class TestIntegratedWorkflow:
         # Verify results
         assert matches_found == expected_matches
         assert counter._value._value == initial_count + expected_matches
+
+
+class TestSampleData:
+    """Test sample data generation and processing"""
+    
+    def test_sample_data_format_matches_regex(self):
+        """Test that sample data entries match the expected regex pattern"""
+        # Sample data entries (same as injected by cmd.sh)
+        sample_entries = [
+            "Jul 14 09:15:23 arpwatch-monitor arpwatch: new station 192.168.1.101 d4:81:d7:23:a5:67 eth0",
+            "Jul 14 09:16:45 arpwatch-monitor arpwatch: new station 192.168.1.102 6c:40:08:9a:bc:de eth0",
+            "Jul 14 09:18:12 arpwatch-monitor arpwatch: new station 192.168.1.103 00:1e:c9:45:67:89 (printer-lobby.local) eth0",
+            "Jul 14 09:19:34 arpwatch-monitor arpwatch: new station 192.168.1.104 00:1b:21:12:34:56 eth0",
+            "Jul 14 09:21:07 arpwatch-monitor arpwatch: new station 10.0.0.50 ac:bc:32:78:9a:bc eth0"
+        ]
+        
+        # All entries should match the NEW_STATION regex
+        for entry in sample_entries:
+            assert NEW_STATION.search(entry) is not None, f"Sample entry should match regex: {entry}"
+    
+    def test_sample_data_triggers_metrics(self):
+        """Test that sample data entries increment the metrics counter"""
+        sample_entries = [
+            "Jul 14 09:15:23 arpwatch-monitor arpwatch: new station 192.168.1.101 d4:81:d7:23:a5:67 eth0",
+            "Jul 14 09:16:45 arpwatch-monitor arpwatch: new station 192.168.1.102 6c:40:08:9a:bc:de eth0",
+            "Jul 14 09:18:12 arpwatch-monitor arpwatch: new station 192.168.1.103 00:1e:c9:45:67:89 (printer-lobby.local) eth0",
+            "Jul 14 09:19:34 arpwatch-monitor arpwatch: new station 192.168.1.104 00:1b:21:12:34:56 eth0",
+            "Jul 14 09:21:07 arpwatch-monitor arpwatch: new station 10.0.0.50 ac:bc:32:78:9a:bc eth0"
+        ]
+        
+        # Get initial counter value
+        initial_value = counter._value._value
+        
+        # Process each sample entry
+        matches_found = 0
+        for entry in sample_entries:
+            if NEW_STATION.search(entry):
+                counter.inc()
+                matches_found += 1
+        
+        # Verify all 5 entries incremented the counter
+        final_value = counter._value._value
+        assert matches_found == 5, f"Expected 5 matches, got {matches_found}"
+        assert final_value == initial_value + 5, f"Counter should have increased by 5: {initial_value} -> {final_value}"
+    
+    def test_sample_data_mac_addresses_realistic(self):
+        """Test that sample data uses realistic MAC address formats"""
+        sample_entries = [
+            "Jul 14 09:15:23 arpwatch-monitor arpwatch: new station 192.168.1.101 d4:81:d7:23:a5:67 eth0",
+            "Jul 14 09:16:45 arpwatch-monitor arpwatch: new station 192.168.1.102 6c:40:08:9a:bc:de eth0",
+            "Jul 14 09:18:12 arpwatch-monitor arpwatch: new station 192.168.1.103 00:1e:c9:45:67:89 (printer-lobby.local) eth0",
+            "Jul 14 09:19:34 arpwatch-monitor arpwatch: new station 192.168.1.104 00:1b:21:12:34:56 eth0",
+            "Jul 14 09:21:07 arpwatch-monitor arpwatch: new station 10.0.0.50 ac:bc:32:78:9a:bc eth0"
+        ]
+        
+        # Extract MAC addresses and verify format
+        import re
+        mac_pattern = re.compile(r'([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})')
+        
+        for entry in sample_entries:
+            mac_match = mac_pattern.search(entry)
+            assert mac_match is not None, f"Entry should contain valid MAC address: {entry}"
+            
+            mac_address = mac_match.group(1)
+            # Check it's properly formatted (6 groups of 2 hex digits separated by colons)
+            assert len(mac_address) == 17, f"MAC address should be 17 characters: {mac_address}"
+            assert mac_address.count(':') == 5, f"MAC address should have 5 colons: {mac_address}"
+    
+    def test_sample_data_ip_addresses_realistic(self):
+        """Test that sample data uses realistic private IP addresses"""
+        sample_entries = [
+            "Jul 14 09:15:23 arpwatch-monitor arpwatch: new station 192.168.1.101 d4:81:d7:23:a5:67 eth0",
+            "Jul 14 09:16:45 arpwatch-monitor arpwatch: new station 192.168.1.102 6c:40:08:9a:bc:de eth0",
+            "Jul 14 09:18:12 arpwatch-monitor arpwatch: new station 192.168.1.103 00:1e:c9:45:67:89 (printer-lobby.local) eth0",
+            "Jul 14 09:19:34 arpwatch-monitor arpwatch: new station 192.168.1.104 00:1b:21:12:34:56 eth0",
+            "Jul 14 09:21:07 arpwatch-monitor arpwatch: new station 10.0.0.50 ac:bc:32:78:9a:bc eth0"
+        ]
+        
+        # Extract IP addresses and verify they're private ranges
+        import re
+        ip_pattern = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+        
+        expected_ips = ["192.168.1.101", "192.168.1.102", "192.168.1.103", "192.168.1.104", "10.0.0.50"]
+        
+        for i, entry in enumerate(sample_entries):
+            ip_match = ip_pattern.search(entry)
+            assert ip_match is not None, f"Entry should contain IP address: {entry}"
+            
+            ip_address = ip_match.group(1)
+            assert ip_address == expected_ips[i], f"Expected IP {expected_ips[i]}, got {ip_address}"
+            
+            # Verify it's a private IP range
+            assert (ip_address.startswith("192.168.") or 
+                   ip_address.startswith("10.") or 
+                   ip_address.startswith("172.")), f"IP should be private range: {ip_address}"
